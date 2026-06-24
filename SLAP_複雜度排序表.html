@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SLAP 策略複雜度排序表</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f8f8f6;color:#1a1a1a;padding:2rem;}
+h1{font-size:20px;font-weight:600;margin-bottom:4px;}
+.sub{font-size:13px;color:#666;margin-bottom:16px;}
+.axis-bar{display:flex;align-items:center;gap:10px;margin-bottom:18px;padding:10px 14px;background:#fff;border-radius:8px;border:1px solid #e5e5e2;}
+.axis-label{font-size:11px;color:#888;white-space:nowrap;}
+.axis-gradient{flex:1;height:6px;border-radius:3px;background:linear-gradient(to right,#1D9E75,#185FA5,#BA7517,#A32D2D);}
+.tbl-wrap{overflow-x:auto;border:1px solid #e5e5e2;border-radius:10px;background:#fff;}
+table{width:100%;border-collapse:collapse;min-width:900px;}
+th{padding:9px 11px;text-align:left;font-size:11px;font-weight:600;color:#666;background:#f5f5f3;border-bottom:1px solid #e5e5e2;white-space:nowrap;}
+td{padding:10px 11px;vertical-align:top;border-bottom:1px solid #f0f0ed;font-size:12px;line-height:1.55;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:#fafaf8;}
+.rank-num{font-size:17px;font-weight:700;line-height:1;}
+.name{font-weight:600;font-size:12.5px;display:block;}
+.en{font-size:10px;color:#999;margin-top:2px;display:block;}
+.tier-row td{background:#f5f5f3;font-size:10.5px;font-weight:600;color:#666;padding:6px 11px;letter-spacing:.04em;}
+.tier-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle;}
+.tags{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px;}
+.tag{font-size:10px;padding:2px 6px;border-radius:3px;border:1px solid #ddd;color:#555;white-space:nowrap;}
+.tag-key{border-color:#185FA5;color:#185FA5;font-weight:500;}
+.note-text{font-size:10px;color:#aaa;margin-top:3px;}
+.meter{display:flex;gap:3px;margin-top:3px;}
+.dot{width:9px;height:9px;border-radius:50%;}
+.vol-label{font-size:11px;font-weight:600;}
+.qual-wrap{display:flex;align-items:center;gap:6px;margin-bottom:3px;}
+.qual-bar{height:6px;border-radius:3px;}
+.qual-pct{font-size:11px;font-weight:600;}
+.qual-note{font-size:10px;color:#888;}
+.remark{font-size:11px;color:#777;}
+</style>
+</head>
+<body>
+<h1>📦 SLAP 策略複雜度排序表</h1>
+<p class="sub">依所需數據量與計算量由低至高排列 · 16 種策略 · 從零數據到大數據機器學習</p>
+
+<div class="axis-bar">
+  <span class="axis-label">⬅ 最簡單（零數據）</span>
+  <div class="axis-gradient"></div>
+  <span class="axis-label">最複雜（大數據）➡</span>
+</div>
+
+<div class="tbl-wrap">
+<table>
+<thead>
+<tr>
+  <th style="width:44px;text-align:center;">#</th>
+  <th style="min-width:120px;">策略名稱</th>
+  <th style="min-width:240px;">所需數據（具體項目）</th>
+  <th style="width:90px;">數據量</th>
+  <th style="width:80px;">計算量</th>
+  <th style="min-width:130px;">效果（距最優）</th>
+  <th style="min-width:90px;">備注</th>
+</tr>
+</thead>
+<tbody id="tbody"></tbody>
+</table>
+</div>
+
+<script>
+const tiers=[
+  {label:"Tier 1 — 零數據",color:"#1D9E75"},
+  {label:"Tier 2 — 靜態基礎數據（只需一次性輸入）",color:"#185FA5"},
+  {label:"Tier 3 — 歷史需求數據（需一段期間的紀錄）",color:"#534AB7"},
+  {label:"Tier 4 — 訂單級數據（需逐筆訂單明細）",color:"#BA7517"},
+  {label:"Tier 5 — 多維度數據 + 預測模型",color:"#993C1D"},
+  {label:"Tier 6 — 大數據 + 機器學習",color:"#721F1F"},
+];
+
+const rows=[
+  {tier:0,name:"隨機存放",en:"Random Storage",
+   data:[],dataNote:"無需任何數據",
+   dataVol:0,calc:0,
+   qual:15,qualNote:"無優化，揀貨路徑最差",note:"可作類別內子策略"},
+
+  {tier:0,name:"最近空位存放",en:"Nearest Open Location",
+   data:["即時空位狀態（WMS 即有）"],dataNote:"系統即時數據，無需歷史紀錄",
+   dataVol:1,calc:1,
+   qual:38,qualNote:"relocation 有效啟發解",note:"AVS/RS relocation 常用"},
+
+  {tier:1,name:"固定存放",en:"Dedicated Storage",
+   data:["SKU 清單","各 SKU 最大庫存量（峰值）"],dataNote:"靜態數據，不需歷史需求",
+   dataVol:1,calc:0,
+   qual:25,qualNote:"空間利用率低，揀貨未優化",note:"無 WMS 亦可運作"},
+
+  {tier:1,name:"重量導向存放",en:"Weight-Based Storage",
+   data:["各 SKU 重量（靜態）","貨架承重規格"],dataNote:"靜態物理數據，不需需求歷史",
+   dataVol:1,calc:0,
+   qual:20,qualNote:"安全導向，非效率最優",note:"常與 ABC 組合補安全維度"},
+
+  {tier:2,name:"黃金區域存放",en:"Golden Zone Storage",
+   data:["各 SKU 揀貨頻率排名（粗略高/中/低即可）"],dataNote:"粗略排名，不需精確數值",
+   dataVol:1,calc:1,
+   qual:30,qualNote:"人因改善，效率增益有限",note:"Loske (2022) 發現反效果 -2.55%"},
+
+  {tier:2,name:"全週轉率存放",en:"Full Turnover-Based",
+   data:["各 SKU 歷史揀貨頻率（週期內加總）"],dataNote:"一段期間的揀貨次數統計即可",
+   dataVol:2,calc:1,
+   qual:50,qualNote:"Single-command 有效，multi-command 受限",note:"COI 前身，最直觀"},
+
+  {tier:2,name:"ABC 分類存放",en:"ABC Class-Based Storage",
+   data:["各 SKU 歷史揀貨頻率","A/B/C 分類邊界設定（人工或資料驅動）"],dataNote:"週轉率數據 + 人工設定門檻",
+   dataVol:2,calc:1,
+   qual:62,qualNote:"比 Dedicated 減少 20-25% 行走時間",note:"文獻最常用的 baseline"},
+
+  {tier:2,name:"共享存放",en:"Shared Storage",
+   data:["各 SKU 需求量時序","WMS 即時位置追蹤"],dataNote:"需求時序 + 即時追蹤，整合要求高",
+   dataVol:2,calc:2,
+   qual:65,qualNote:"比 Dedicated 顯著節省空間與時間",note:"可套其他策略為子策略"},
+
+  {tier:3,name:"COI 指標存放",en:"Cube per Order Index (COI)",
+   data:["各 SKU 歷史揀貨頻率","各 SKU 所需儲位數（體積換算）"],dataNote:"頻率 + 體積，兩個維度",
+   dataVol:2,calc:1,
+   qual:67,qualNote:"Single-command 理論最優",note:"Multi-command worst-case 無界"},
+
+  {tier:3,name:"相關性/親和性存放",en:"Correlated / Affinity-Based",
+   data:["完整訂單明細（每張訂單含哪些 SKU）","SKU 共現頻率矩陣（計算所得）"],dataNote:"訂單級數據，需大量歷史訂單建矩陣",
+   dataVol:3,calc:2,
+   qual:72,qualNote:"多品項訂單行走距離顯著下降",note:"Frazelle & Sharp (1989)"},
+
+  {tier:3,name:"停留時間存放",en:"Duration-of-Stay (DoS)",
+   data:["各 SKU 預計出貨時間（due date）","入庫時間紀錄"],dataNote:"需預知或精確預測出貨時間",
+   dataVol:2,calc:2,
+   qual:82,qualNote:"I/O 平衡且 DoS 已知時理論最優",note:"Goetschalckx & Ratliff (1990)"},
+
+  {tier:4,name:"訂單導向存放",en:"Order-Oriented Slotting (OOS)",
+   data:["完整訂單歷史（每筆明細）","倉庫佈局與儲位距離矩陣","ILP / QAP 求解器"],dataNote:"訂單數據 + 倉庫模型 + 優化求解器",
+   dataVol:3,calc:4,
+   qual:80,qualNote:"QAP heuristic 距最優解僅 2%",note:"Mantel et al. (2007)，NP-hard"},
+
+  {tier:4,name:"動態調整存放",en:"Dynamic / Adaptive Storage",
+   data:["需求時序與預測模型","重分配成本估算","各期間位置調整操作紀錄"],dataNote:"跨時間週期數據 + 預測 + 成本模型",
+   dataVol:3,calc:3,
+   qual:75,qualNote:"長期效益優於靜態策略",note:"Robust 策略優於 greedy"},
+
+  {tier:5,name:"關聯規則存放",en:"Association Rule-Based",
+   data:["大量歷史交易數據（萬筆訂單以上）","支持度 / 置信度門檻設定","Apriori / FP-Growth 算法"],dataNote:"需海量訂單數據進行資料探勘",
+   dataVol:4,calc:3,
+   qual:76,qualNote:"能自動發現隱性商品關聯",note:"Pang et al.，可定期更新"},
+
+  {tier:5,name:"強化學習存放",en:"RL-Based (linUCB / Contextual Bandit)",
+   data:["歷史存取操作日誌（至少數月）","狀態-動作-獎勵函數設計","倉庫模擬器（訓練環境）"],dataNote:"需操作歷史 + 模擬環境建構",
+   dataVol:4,calc:4,
+   qual:88,qualNote:"多篇文獻優於 ABC 與 GA",note:"linUCB 為輕量化選項"},
+
+  {tier:5,name:"深度強化學習存放",en:"Deep RL / DQL Storage",
+   data:["大規模歷史操作數據（年級，數十萬筆）","深度神經網路（DQN/PPO/Attention）","GPU 訓練資源","高保真倉庫模擬器"],dataNote:"最高數據需求 + GPU 算力",
+   dataVol:5,calc:5,
+   qual:95,qualNote:"比 ABC 成本低 6.3%；揀貨時間減少 44%",note:"Ningbo-Zhoushan 港已有實務部署"},
+];
+
+const volLabel=["無","極少","少量","中量","大量","海量"];
+const calcLabel=["極低","低","低-中","中","高","極高"];
+const rampColor=["#888780","#1D9E75","#185FA5","#534AB7","#BA7517","#A32D2D"];
+
+function dots(val,max,color){
+  let s='<div class="meter">';
+  for(let i=0;i<max;i++){
+    s+=`<div class="dot" style="background:${i<val?color:'#e0e0da'};"></div>`;
+  }
+  return s+'</div>';
+}
+
+function qualBar(pct){
+  let c;
+  if(pct<35) c="#A32D2D";
+  else if(pct<55) c="#BA7517";
+  else if(pct<70) c="#534AB7";
+  else if(pct<85) c="#185FA5";
+  else c="#1D9E75";
+  return `<div class="qual-wrap">
+    <div class="qual-bar" style="width:${Math.round(pct*0.85)}px;background:${c};"></div>
+    <span class="qual-pct" style="color:${c};">${pct}%</span>
+  </div>`;
+}
+
+const tbody=document.getElementById('tbody');
+let lastTier=-1;
+rows.forEach((r,i)=>{
+  const tc=tiers[r.tier];
+  if(r.tier!==lastTier){
+    const gr=document.createElement('tr');
+    gr.innerHTML=`<td colspan="7" class="tier-row">
+      <span class="tier-dot" style="background:${tc.color};"></span>${tc.label}
+    </td>`;
+    tbody.appendChild(gr);
+    lastTier=r.tier;
+  }
+  const tr=document.createElement('tr');
+  const dataHtml=r.data.length===0
+    ?`<span style="color:#bbb;font-size:11px;">— 無需任何數據 —</span>`
+    :r.data.map((d,di)=>`<span class="tag${di===0?' tag-key':''}">${d}</span>`).join('');
+  tr.innerHTML=`
+    <td style="text-align:center;border-left:3px solid ${tc.color};">
+      <div class="rank-num" style="color:${tc.color};">${String(i+1).padStart(2,'0')}</div>
+    </td>
+    <td>
+      <span class="name">${r.name}</span>
+      <span class="en">${r.en}</span>
+    </td>
+    <td>
+      <div class="tags">${dataHtml}</div>
+      <div class="note-text">${r.dataNote}</div>
+    </td>
+    <td>
+      <div class="vol-label" style="color:${rampColor[r.dataVol]};">${volLabel[r.dataVol]}</div>
+      ${dots(r.dataVol,5,rampColor[r.dataVol])}
+    </td>
+    <td>
+      <div class="vol-label" style="color:${rampColor[r.calc]};">${calcLabel[r.calc]}</div>
+      ${dots(r.calc,5,rampColor[r.calc])}
+    </td>
+    <td>
+      ${qualBar(r.qual)}
+      <div class="qual-note">${r.qualNote}</div>
+    </td>
+    <td class="remark">${r.note}</td>
+  `;
+  tbody.appendChild(tr);
+});
+</script>
+</body>
+</html>
